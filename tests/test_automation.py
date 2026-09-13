@@ -38,7 +38,7 @@ class TestClientErrorMapping(unittest.TestCase):
 
 
 class TestListPostsParams(unittest.TestCase):
-    @patch("client.requests.get")
+    @patch("client.requests.Session.get")
     def test_only_passes_explicit_params(self, mock_get):
         mock_get.return_value = make_resp(200, json_data=[])
         client = PracticeHubClient("https://example.com", "tok")
@@ -46,7 +46,7 @@ class TestListPostsParams(unittest.TestCase):
         _, kwargs = mock_get.call_args
         self.assertEqual(kwargs["params"], {"author": 7, "limit": 100, "offset": 0})
 
-    @patch("client.requests.get")
+    @patch("client.requests.Session.get")
     def test_no_params_when_nothing_passed(self, mock_get):
         mock_get.return_value = make_resp(200, json_data=[])
         client = PracticeHubClient("https://example.com", "tok")
@@ -104,6 +104,38 @@ class TestCheckinIdempotency(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestLoadConfig(unittest.TestCase):
+    ENV = {
+        "PRACTICE_API_URL": "https://example.com",
+        "PRACTICE_API_TOKEN": "tok",
+        "INSTRUCTOR_ID": "7",
+        "MY_USER_ID": "42",
+    }
+
+    def test_valid_env_parses_ok(self):
+        with patch.dict("os.environ", self.ENV, clear=True):
+            base_url, token, instructor_id, my_user_id = automation.load_config()
+        self.assertEqual((base_url, token, instructor_id, my_user_id),
+                         ("https://example.com", "tok", 7, 42))
+
+    def test_missing_var_raises_system_exit(self):
+        env = dict(self.ENV)
+        del env["MY_USER_ID"]
+        with patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(SystemExit) as ctx:
+                automation.load_config()
+        self.assertIn("MY_USER_ID", str(ctx.exception))
+
+    def test_non_integer_instructor_id_raises_clear_error(self):
+        env = dict(self.ENV)
+        env["INSTRUCTOR_ID"] = "not-a-number"
+        with patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(SystemExit) as ctx:
+                automation.load_config()
+        self.assertIn("INSTRUCTOR_ID", str(ctx.exception))
+        self.assertIn("not-a-number", str(ctx.exception))
+
+
 class TestDownloadVerified(unittest.TestCase):
     def test_returns_true_when_size_matches_first_try(self):
         client = MagicMock()
@@ -154,7 +186,7 @@ class TestFilenameSanitization(unittest.TestCase):
 
 
 class TestDownloadAttachment(unittest.TestCase):
-    @patch("client.requests.get")
+    @patch("client.requests.Session.get")
     def test_builds_attachment_url_and_streams(self, mock_get):
         resp = make_resp(200)
         resp.iter_content.return_value = [b"abc", b"def"]

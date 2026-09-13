@@ -11,13 +11,23 @@ A GitHub Actions cron job runs `automation.py` on a schedule against the Practic
    timestamps, and every attachment downloaded — into `artifact/collected.json`
    and `artifact/files/`. It pages through the full `/api/v1/posts` listing
    (`author`/`limit`/`offset`) and always re-fetches each post's full detail
-   rather than trusting the (undocumented) list-view shape.
+   rather than trusting the (undocumented) list-view shape. Each downloaded
+   attachment's size is verified against what the API reported (one retry on
+   mismatch), and the result is recorded as `size_verified` in `collected.json`.
 2. **Replies** to each instructor post whose title contains "check-in"
    (case-insensitive substring match) with a comment, once per check-in. It
    checks the post's existing comments for one already authored by `MY_USER_ID`
    before posting, so re-runs never create duplicate replies. If the server
    returns HTTP 423 (the reply window is closed), it logs and skips that
-   check-in instead of failing the run.
+   check-in instead of failing the run. A summary line ("Found N check-in
+   post(s)... X replied, Y already replied, Z locked, W failed") is always
+   logged, even when there's nothing to do, so a quiet run is distinguishable
+   from a broken one.
+
+Robustness: every API call has a 30s timeout (a hung server can't hang the
+whole cron run), the client reuses a single `requests.Session` across calls,
+and malformed/missing environment variables fail fast with a clear message
+instead of a raw traceback.
 
 ## Setup
 
@@ -50,7 +60,8 @@ post X") instead of actually posting check-in replies.
 - `exceptions.py` - typed exceptions for API error responses (401/403/404/422/423).
 - `automation.py` - orchestrates collection + check-in replies; entry point for the workflow.
 - `.github/workflows/checkin-bot.yml` - schedule (every 15 minutes) + `workflow_dispatch` trigger.
-- `tests/test_automation.py` - unit tests covering pagination, idempotency, and error mapping.
+- `tests/test_automation.py` - unit tests covering pagination, idempotency, error mapping,
+  attachment size verification, and environment variable validation.
 
 ## AI Usage
 
@@ -71,5 +82,10 @@ Claude Code was used throughout development of this assignment:
   GitHub's documented scheduler delay/jitter against an unknown, server-side
   check-in reply window.
 - The `.gitignore`, `requirements.txt`, and this README were AI-drafted.
+- Follow-up robustness passes were AI-drafted and hand-reviewed as separate,
+  targeted changes: per-request timeouts, retry-once-then-flag attachment
+  size verification, clear errors for malformed environment variables, the
+  check-in run summary logging, and switching `client.py` to a single reused
+  `requests.Session`. Each came with its own unit tests.
 - I can explain every line of this code and the workflow YAML, including why
   each design decision was made.

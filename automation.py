@@ -24,6 +24,13 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout,
 log = logging.getLogger("checkin-bot")
 
 
+def _require_int_env(name, raw_value):
+    try:
+        return int(raw_value)
+    except ValueError:
+        raise SystemExit(f"Environment variable {name} must be an integer, got {raw_value!r}.")
+
+
 def load_config():
     base_url = os.environ.get("PRACTICE_API_URL")
     token = os.environ.get("PRACTICE_API_TOKEN")
@@ -37,7 +44,12 @@ def load_config():
     ] if not val]
     if missing:
         raise SystemExit(f"Missing required environment variables: {', '.join(missing)}")
-    return base_url, token, int(instructor_id), int(my_user_id)
+    return (
+        base_url,
+        token,
+        _require_int_env("INSTRUCTOR_ID", instructor_id),
+        _require_int_env("MY_USER_ID", my_user_id),
+    )
 
 
 def sanitize_filename(name):

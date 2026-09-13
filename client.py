@@ -23,6 +23,8 @@ class PracticeHubClient:
         self.base = base_url.rstrip("/")
         self.headers = {"Authorization": f"Bearer {token}"}
         self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
 
     def _check_response(self, resp):
         if resp.status_code in self._ERRORS:
@@ -37,9 +39,9 @@ class PracticeHubClient:
         return resp.json()
 
     def create_post(self, title, body="", tags=None):
-        resp = requests.post(f"{self.base}/api/v1/posts", headers=self.headers,
-                             json={"title": title, "body": body, "tags": tags or []},
-                             timeout=self.timeout)
+        resp = self.session.post(f"{self.base}/api/v1/posts",
+                                 json={"title": title, "body": body, "tags": tags or []},
+                                 timeout=self.timeout)
         return self._handle_response(resp)
 
     def list_posts(self, mine=None, author=None, tag=None, limit=None, offset=None):
@@ -54,58 +56,53 @@ class PracticeHubClient:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
-        resp = requests.get(f"{self.base}/api/v1/posts", headers=self.headers, params=params,
-                            timeout=self.timeout)
+        resp = self.session.get(f"{self.base}/api/v1/posts", params=params, timeout=self.timeout)
         return self._handle_response(resp)
 
     def get_post(self, post_id):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.get(f"{self.base}/api/v1/posts/{post_id}", headers=self.headers,
-                            timeout=self.timeout)
+        resp = self.session.get(f"{self.base}/api/v1/posts/{post_id}", timeout=self.timeout)
         return self._handle_response(resp)
 
     def update_post(self, post_id, **fields):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.patch(f"{self.base}/api/v1/posts/{post_id}",
-                              json=fields, headers=self.headers, timeout=self.timeout)
+        resp = self.session.patch(f"{self.base}/api/v1/posts/{post_id}",
+                                  json=fields, timeout=self.timeout)
         return self._handle_response(resp)
 
     def delete_post(self, post_id):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.delete(f"{self.base}/api/v1/posts/{post_id}", headers=self.headers,
-                               timeout=self.timeout)
+        resp = self.session.delete(f"{self.base}/api/v1/posts/{post_id}", timeout=self.timeout)
         self._handle_response(resp)
         return None
 
     def list_comments(self, post_id):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.get(f"{self.base}/api/v1/posts/{post_id}/comments", headers=self.headers,
-                            timeout=self.timeout)
+        resp = self.session.get(f"{self.base}/api/v1/posts/{post_id}/comments", timeout=self.timeout)
         return self._handle_response(resp)
 
     def create_comment(self, post_id, body):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.post(f"{self.base}/api/v1/posts/{post_id}/comments",
-                             headers=self.headers, json={"body": body}, timeout=self.timeout)
+        resp = self.session.post(f"{self.base}/api/v1/posts/{post_id}/comments",
+                                 json={"body": body}, timeout=self.timeout)
         return self._handle_response(resp)
 
     def list_attachments(self, post_id):
         if not isinstance(post_id, int):
             raise TypeError(f"post_id must be an int, got {type(post_id).__name__}")
-        resp = requests.get(f"{self.base}/api/v1/posts/{post_id}/attachments", headers=self.headers,
-                            timeout=self.timeout)
+        resp = self.session.get(f"{self.base}/api/v1/posts/{post_id}/attachments", timeout=self.timeout)
         return self._handle_response(resp)
 
     def download_attachment(self, attachment_id, dest_path):
         if not isinstance(attachment_id, int):
             raise TypeError(f"attachment_id must be an int, got {type(attachment_id).__name__}")
-        resp = requests.get(f"{self.base}/api/v1/attachments/{attachment_id}",
-                            headers=self.headers, stream=True, timeout=self.timeout)
+        resp = self.session.get(f"{self.base}/api/v1/attachments/{attachment_id}",
+                                stream=True, timeout=self.timeout)
         self._check_response(resp)
         with open(dest_path, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
