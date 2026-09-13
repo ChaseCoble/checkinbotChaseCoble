@@ -44,6 +44,22 @@ def sanitize_filename(name):
     return re.sub(r"[^A-Za-z0-9._-]", "_", name)
 
 
+def download_attachment_verified(client, attachment_id, dest_path, expected_size, max_attempts=2):
+    """Download an attachment, retrying once if the downloaded size doesn't match
+    the size the API reported. Returns True if the final file's size matches (or
+    no size was reported to check against), False if it still doesn't after retrying."""
+    for attempt in range(1, max_attempts + 1):
+        client.download_attachment(attachment_id, dest_path)
+        actual_size = dest_path.stat().st_size
+        if expected_size is None or actual_size == expected_size:
+            return True
+        log.warning(
+            "Attachment %s: downloaded size %d does not match reported size %d (attempt %d/%d).",
+            attachment_id, actual_size, expected_size, attempt, max_attempts,
+        )
+    return False
+
+
 def fetch_all_instructor_posts(client, instructor_id, page_size=100):
     posts = []
     offset = 0
@@ -81,14 +97,22 @@ def run_collect(client, instructor_id, artifact_dir=ARTIFACT_DIR):
         for att in post.get("attachments", []):
             local_path = files_dir / str(post_id) / f'{att["id"]}_{sanitize_filename(att["filename"])}'
             local_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_size = att.get("size")
+            size_verified = True
             try:
-                if not (local_path.exists() and local_path.stat().st_size == att.get("size")):
-                    client.download_attachment(att["id"], local_path)
+                if not (local_path.exists() and local_path.stat().st_size == expected_size):
+                    size_verified = download_attachment_verified(client, att["id"], local_path, expected_size)
+                    if not size_verified:
+                        log.warning(
+                            "Attachment %s on post %s failed size verification after retries; "
+                            "keeping best-effort download.", att["id"], post_id,
+                        )
             except Exception as e:
                 log.warning("Failed to download attachment %s on post %s: %s", att["id"], post_id, e)
                 continue
             att_record = dict(att)
             att_record["local_path"] = str(local_path.relative_to(artifact_dir))
+            att_record["size_verified"] = size_verified
             attachments_out.append(att_record)
 
         post["attachments"] = attachments_out

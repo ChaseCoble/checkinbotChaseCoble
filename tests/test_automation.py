@@ -104,6 +104,50 @@ class TestCheckinIdempotency(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestDownloadVerified(unittest.TestCase):
+    def test_returns_true_when_size_matches_first_try(self):
+        client = MagicMock()
+
+        def fake_download(attachment_id, dest_path):
+            dest_path.write_bytes(b"1234567890")
+
+        client.download_attachment.side_effect = fake_download
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "f.bin"
+            ok = automation.download_attachment_verified(client, 1, dest, expected_size=10)
+            self.assertTrue(ok)
+            self.assertEqual(client.download_attachment.call_count, 1)
+
+    def test_retries_once_then_gives_up_on_persistent_mismatch(self):
+        client = MagicMock()
+
+        def fake_download(attachment_id, dest_path):
+            dest_path.write_bytes(b"short")
+
+        client.download_attachment.side_effect = fake_download
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "f.bin"
+            ok = automation.download_attachment_verified(client, 1, dest, expected_size=999)
+            self.assertFalse(ok)
+            self.assertEqual(client.download_attachment.call_count, 2)
+
+    def test_no_expected_size_means_always_verified(self):
+        client = MagicMock()
+
+        def fake_download(attachment_id, dest_path):
+            dest_path.write_bytes(b"whatever")
+
+        client.download_attachment.side_effect = fake_download
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "f.bin"
+            ok = automation.download_attachment_verified(client, 1, dest, expected_size=None)
+            self.assertTrue(ok)
+            self.assertEqual(client.download_attachment.call_count, 1)
+
+
 class TestFilenameSanitization(unittest.TestCase):
     def test_sanitizes_unsafe_characters(self):
         self.assertEqual(automation.sanitize_filename("my file/name?.pdf"), "my_file_name_.pdf")
