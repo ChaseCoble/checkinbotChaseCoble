@@ -1,0 +1,54 @@
+name: Scheduled Check-In Bot
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: checkin-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run automation
+        env:
+          PRACTICE_API_TOKEN: ${{ secrets.PRACTICE_API_TOKEN }}
+          PRACTICE_API_URL: ${{ secrets.PRACTICE_API_URL }}
+          INSTRUCTOR_ID: ${{ vars.INSTRUCTOR_ID }}
+          MY_USER_ID: ${{ vars.MY_USER_ID }}
+        run: python automation.py
+
+      - name: Commit artifact
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add artifact/
+          if git diff --cached --quiet; then
+            echo "No artifact changes to commit."
+          else
+            git commit -m "Automated artifact update $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git push
+          fi
+
+      - name: Upload artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ github.run_id }}
+          path: artifact/
