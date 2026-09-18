@@ -1,5 +1,5 @@
 {
-  "collected_at": "2026-09-18T01:53:54.559601+00:00",
+  "collected_at": "2026-09-18T06:48:41.564179+00:00",
   "instructor_id": 7,
   "posts": [
     {
@@ -232,6 +232,19 @@
       "author_name": "Jason Zeller",
       "created_at": "2026-09-17T05:00:36.468479",
       "updated_at": "2026-09-17T05:00:36.468481",
+      "attachments": []
+    },
+    {
+      "id": 37,
+      "title": "Sept 18 check-in",
+      "body": "Daily check-in for Friday 18 September. Reply to this post to check in.",
+      "tags": [
+        "check-in"
+      ],
+      "author_id": 7,
+      "author_name": "Jason Zeller",
+      "created_at": "2026-09-18T05:00:36.486819",
+      "updated_at": "2026-09-18T05:00:36.486824",
       "attachments": []
     }
   ]
